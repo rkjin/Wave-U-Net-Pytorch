@@ -25,18 +25,18 @@ def main(args):
 
     # MODEL
     num_features = [args.features*i for i in range(1, args.levels+1)] if args.feature_growth == "add" else \
-                   [args.features*2**i for i in range(0, args.levels)]
-    target_outputs = int(args.output_size * args.sr)
+                   [args.features*2**i for i in range(0, args.levels)]  #[32, 64, 128, 256, 512, 1024]
+    target_outputs = int(args.output_size * args.sr) #88200 = 44.1khz * 2 
     model = Waveunet(args.channels, num_features, args.channels, args.instruments, kernel_size=args.kernel_size,
                      target_output_size=target_outputs, depth=args.depth, strides=args.strides,
                      conv_type=args.conv_type, res=args.res, separate=args.separate)
-
-    if args.cuda:
+ 
+    if args.cuda: # True
         model = model_utils.DataParallel(model)
         print("move model to gpu")
         model.cuda()
 
-    print('model: ', model)
+#    print('model: ', model)
     print('parameter count: ', str(sum(p.numel() for p in model.parameters())))
 
     writer = SummaryWriter(args.log_dir)
@@ -56,7 +56,7 @@ def main(args):
     ##### TRAINING ####
 
     # Set up the loss function
-    if args.loss == "L1":
+    if args.loss == "L1": #True
         criterion = nn.L1Loss()
     elif args.loss == "L2":
         criterion = nn.MSELoss()
@@ -64,7 +64,7 @@ def main(args):
         raise NotImplementedError("Couldn't find this loss!")
 
     # Set up optimiser
-    optimizer = Adam(params=model.parameters(), lr=args.lr)
+    optimizer = Adam(params=model.parameters(), lr=args.lr) # 1e-3
 
     # Set up training state dict that will also be saved into checkpoints
     state = {"step" : 0,
@@ -73,19 +73,19 @@ def main(args):
              "best_loss" : np.Inf}
 
     # LOAD MODEL CHECKPOINT IF DESIRED
-    if args.load_model is not None:
+    if args.load_model is not None: 
         print("Continuing training full model from checkpoint " + str(args.load_model))
         state = model_utils.load_model(model, optimizer, args.load_model, args.cuda)
-
+ 
     print('TRAINING START')
-    while state["worse_epochs"] < args.patience:
+    while state["worse_epochs"] < args.patience: #20
         print("Training one epoch from iteration " + str(state["step"]))
         avg_time = 0.
         model.train()
-        with tqdm(total=len(train_data) // args.batch_size) as pbar:
+        with tqdm(total=len(train_data) // args.batch_size) as pbar: # 67
             np.random.seed()
             for example_num, (x, targets) in enumerate(dataloader):
-                if args.cuda:
+                if args.cuda: # True
                     x = x.cuda()
                     for k in list(targets.keys()):
                         targets[k] = targets[k].cuda()
@@ -116,7 +116,7 @@ def main(args):
                     for inst in outputs.keys():
                         writer.add_audio(inst + "_pred", torch.mean(outputs[inst][0], 0), state["step"], sample_rate=args.sr)
                         writer.add_audio(inst + "_target", torch.mean(targets[inst][0], 0), state["step"], sample_rate=args.sr)
-
+ 
                 pbar.update(1)
 
         # VALIDATE
@@ -174,15 +174,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--instruments', type=str, nargs='+', default=["bass", "drums", "other", "vocals"],
                         help="List of instruments to separate (default: \"bass drums other vocals\")")
-    parser.add_argument('--cuda', action='store_true',
-                        help='Use CUDA (default: False)')
+    parser.add_argument('--cuda', default = True,
+                        help='Use CUDA  ')
     parser.add_argument('--num_workers', type=int, default=1,
                         help='Number of data loader worker threads (default: 1)')
     parser.add_argument('--features', type=int, default=32,
                         help='Number of feature channels per layer')
     parser.add_argument('--log_dir', type=str, default='logs/waveunet',
                         help='Folder to write logs into')
-    parser.add_argument('--dataset_dir', type=str, default="/mnt/windaten/Datasets/MUSDB18HQ",
+    parser.add_argument('--dataset_dir', type=str, default="/home/bj/data/dnn/cfnet_venv/music_data/musdb18-hq",
                         help='Dataset path')
     parser.add_argument('--hdf_dir', type=str, default="hdf",
                         help='Dataset path')

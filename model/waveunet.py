@@ -68,7 +68,7 @@ class DownsamplingBlock(nn.Module):
                                                   range(depth - 1)])
 
         # CONV 2 with decimation
-        if res == "fixed":
+        if res == "fixed": #True
             self.downconv = Resample1d(n_outputs, 15, stride) # Resampling with fixed-size sinc lowpass filter
         else:
             self.downconv = ConvLayer(n_outputs, n_outputs, kernel_size, stride, conv_type)
@@ -78,17 +78,61 @@ class DownsamplingBlock(nn.Module):
         shortcut = x
         for conv in self.pre_shortcut_convs:
             shortcut = conv(shortcut)
-
+            # print('conv0',conv)
         # PREPARING FOR DOWNSAMPLING
         out = shortcut
         for conv in self.post_shortcut_convs:
             out = conv(out)
-
+            # print('conv1',conv)
         # DOWNSAMPLING
         out = self.downconv(out)
-
+        # print('downconv', self.downconv)
         return out, shortcut
-
+        # conv0 ConvLayer(
+        # (filter): Conv1d(2, 32, kernel_size=(5,), stride=(1,))
+        # (norm): GroupNorm(4, 32, eps=1e-05, affine=True)
+        # )
+        # conv1 ConvLayer(
+        # (filter): Conv1d(32, 64, kernel_size=(5,), stride=(1,))
+        # (norm): GroupNorm(8, 64, eps=1e-05, affine=True)
+        # )
+        # downconv Resample1d()
+        # conv0 ConvLayer(
+        # (filter): Conv1d(64, 64, kernel_size=(5,), stride=(1,))
+        # (norm): GroupNorm(8, 64, eps=1e-05, affine=True)
+        # )
+        # conv1 ConvLayer(
+        # (filter): Conv1d(64, 128, kernel_size=(5,), stride=(1,))
+        # (norm): GroupNorm(16, 128, eps=1e-05, affine=True)
+        # )
+        # downconv Resample1d()
+        # conv0 ConvLayer(
+        # (filter): Conv1d(128, 128, kernel_size=(5,), stride=(1,))
+        # (norm): GroupNorm(16, 128, eps=1e-05, affine=True)
+        # )
+        # conv1 ConvLayer(
+        # (filter): Conv1d(128, 256, kernel_size=(5,), stride=(1,))
+        # (norm): GroupNorm(32, 256, eps=1e-05, affine=True)
+        # )
+        # downconv Resample1d()
+        # conv0 ConvLayer(
+        # (filter): Conv1d(256, 256, kernel_size=(5,), stride=(1,))
+        # (norm): GroupNorm(32, 256, eps=1e-05, affine=True)
+        # )
+        # conv1 ConvLayer(
+        # (filter): Conv1d(256, 512, kernel_size=(5,), stride=(1,))
+        # (norm): GroupNorm(64, 512, eps=1e-05, affine=True)
+        # )
+        # downconv Resample1d()
+        # conv0 ConvLayer(
+        # (filter): Conv1d(512, 512, kernel_size=(5,), stride=(1,))
+        # (norm): GroupNorm(64, 512, eps=1e-05, affine=True)
+        # )
+        # conv1 ConvLayer(
+        # (filter): Conv1d(512, 1024, kernel_size=(5,), stride=(1,))
+        # (norm): GroupNorm(128, 1024, eps=1e-05, affine=True)
+        # )
+        # downconv Resample1d()
     def get_input_size(self, output_size):
         curr_size = self.downconv.get_input_size(output_size)
 
@@ -103,31 +147,30 @@ class Waveunet(nn.Module):
     def __init__(self, num_inputs, num_channels, num_outputs, instruments, kernel_size, target_output_size, conv_type, res, separate=False, depth=1, strides=2):
         super(Waveunet, self).__init__()
 
-        self.num_levels = len(num_channels)
-        self.strides = strides
-        self.kernel_size = kernel_size
-        self.num_inputs = num_inputs
-        self.num_outputs = num_outputs
-        self.depth = depth
-        self.instruments = instruments
-        self.separate = separate
-
+        self.num_levels = len(num_channels) #6
+        self.strides = strides #4
+        self.kernel_size = kernel_size #5
+        self.num_inputs = num_inputs #2
+        self.num_outputs = num_outputs #2
+        self.depth = depth #1
+        self.instruments = instruments #  ['bass', 'drums', 'other', 'vocals']
+        self.separate = separate # 1
         # Only odd filter kernels allowed
         assert(kernel_size % 2 == 1)
 
         self.waveunets = nn.ModuleDict()
-
         model_list = instruments if separate else ["ALL"]
+ 
         # Create a model for each source if we separate sources separately, otherwise only one (model_list=["ALL"])
-        for instrument in model_list:
+        for instrument in model_list: #  ['bass', 'drums', 'other', 'vocals']
             module = nn.Module()
 
             module.downsampling_blocks = nn.ModuleList()
             module.upsampling_blocks = nn.ModuleList()
-
-            for i in range(self.num_levels - 1):
+ 
+            for i in range(self.num_levels - 1): # 0 ~ 4
                 in_ch = num_inputs if i == 0 else num_channels[i]
-
+#               print(i, in_ch) 0:2, 1:64, 2:128, 3:246, 4:512
                 module.downsampling_blocks.append(
                     DownsamplingBlock(in_ch, num_channels[i], num_channels[i+1], kernel_size, strides, depth, conv_type, res))
 
@@ -196,32 +239,227 @@ class Waveunet(nn.Module):
         :return: Source estimates
         '''
         shortcuts = []
-        out = x
+        out = x #([4, 2, 97961])
 
         # DOWNSAMPLING BLOCKS
         for block in module.downsampling_blocks:
             out, short = block(out)
-            shortcuts.append(short)
-
+            shortcuts.append(short) #len = 5
+            #print(out.shape, short.shape)
+            # torch.Size([4, 64, 24489]) torch.Size([4, 32, 97957])
+            # torch.Size([4, 128, 6121]) torch.Size([4, 64, 24485])
+            # torch.Size([4, 256, 1529]) torch.Size([4, 128, 6117])
+            # torch.Size([4, 512, 381]) torch.Size([4, 256, 1525])
+            # torch.Size([4, 1024, 94]) torch.Size([4, 512, 377])
+            # block DownsamplingBlock(
+            # (pre_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(2, 32, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(4, 32, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (post_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(32, 64, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (downconv): Resample1d()
+            # )
+            # block DownsamplingBlock(
+            # (pre_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(64, 64, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (post_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(64, 128, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(16, 128, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (downconv): Resample1d()
+            # )
+            # block DownsamplingBlock(
+            # (pre_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(128, 128, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(16, 128, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (post_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(128, 256, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(32, 256, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (downconv): Resample1d()
+            # )
+            # block DownsamplingBlock(
+            # (pre_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(256, 256, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(32, 256, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (post_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(256, 512, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(64, 512, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (downconv): Resample1d()
+            # )
+            # block DownsamplingBlock(
+            # (pre_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(512, 512, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(64, 512, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (post_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(512, 1024, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(128, 1024, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (downconv): Resample1d()
+            # )
         # BOTTLENECK CONVOLUTION
         for conv in module.bottlenecks:
             out = conv(out)
-
+            # print(out.shape)
+            # torch.Size([4, 1024, 90])
+            # torch.Size([4, 1024, 90])
+            # torch.Size([4, 1024, 90])
+            # torch.Size([4, 1024, 90])
+            # print('conv',conv)
+            # conv ConvLayer(
+            # (filter): Conv1d(1024, 1024, kernel_size=(5,), stride=(1,))
+            # (norm): GroupNorm(128, 1024, eps=1e-05, affine=True)
+            # )
+            # conv ConvLayer(
+            # (filter): Conv1d(1024, 1024, kernel_size=(5,), stride=(1,))
+            # (norm): GroupNorm(128, 1024, eps=1e-05, affine=True)
+            # )
+            # conv ConvLayer(
+            # (filter): Conv1d(1024, 1024, kernel_size=(5,), stride=(1,))
+            # (norm): GroupNorm(128, 1024, eps=1e-05, affine=True)
+            # )
+            # conv ConvLayer(
+            # (filter): Conv1d(1024, 1024, kernel_size=(5,), stride=(1,))
+            # (norm): GroupNorm(128, 1024, eps=1e-05, affine=True)
+            # )
         # UPSAMPLING BLOCKS
         for idx, block in enumerate(module.upsampling_blocks):
+            # print(idx, out.shape, shortcuts[-1-idx].shape)
             out = block(out, shortcuts[-1 - idx])
-
+            # print(idx, out.shape)
+            # 0 torch.Size([4, 1024, 90]) torch.Size([4, 512, 377])
+            # 0 torch.Size([4, 512, 349])
+            # 1 torch.Size([4, 512, 349]) torch.Size([4, 256, 1525])
+            # 1 torch.Size([4, 256, 1385])
+            # 2 torch.Size([4, 256, 1385]) torch.Size([4, 128, 6117])
+            # 2 torch.Size([4, 128, 5529])
+            # 3 torch.Size([4, 128, 5529]) torch.Size([4, 64, 24485])
+            # 3 torch.Size([4, 64, 22105])
+            # 4 torch.Size([4, 64, 22105]) torch.Size([4, 32, 97957])
+            # 4 torch.Size([4, 32, 88409])
+            # print('idx, block',idx, block)
+            # idx, block 0 UpsamplingBlock(
+            # (upconv): Resample1d()
+            # (pre_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(1024, 512, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(64, 512, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (post_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(1024, 512, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(64, 512, eps=1e-05, affine=True)
+            #     )
+            # )
+            # )
+            # idx, block 1 UpsamplingBlock(
+            # (upconv): Resample1d()
+            # (pre_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(512, 256, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(32, 256, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (post_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(512, 256, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(32, 256, eps=1e-05, affine=True)
+            #     )
+            # )
+            # )
+            # idx, block 2 UpsamplingBlock(
+            # (upconv): Resample1d()
+            # (pre_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(256, 128, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(16, 128, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (post_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(256, 128, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(16, 128, eps=1e-05, affine=True)
+            #     )
+            # )
+            # )
+            # idx, block 3 UpsamplingBlock(
+            # (upconv): Resample1d()
+            # (pre_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(128, 64, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (post_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(128, 64, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            #     )
+            # )
+            # )
+            # idx, block 4 UpsamplingBlock(
+            # (upconv): Resample1d()
+            # (pre_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(64, 32, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(4, 32, eps=1e-05, affine=True)
+            #     )
+            # )
+            # (post_shortcut_convs): ModuleList(
+            #     (0): ConvLayer(
+            #     (filter): Conv1d(64, 32, kernel_size=(5,), stride=(1,))
+            #     (norm): GroupNorm(4, 32, eps=1e-05, affine=True)
+            #     )
+            # )
+            # )            
         # OUTPUT CONV
-        out = module.output_conv(out)
-        if not self.training:  # At test time clip predictions to valid amplitude range
+        # print(out.shape)
+        out = module.output_conv(out)  
+        # print(out.shape)
+        # torch.Size([4, 32, 88409])
+        # torch.Size([4, 2, 88409])
+        # print('module', module.output_conv)
+        # module Conv1d(32, 2, kernel_size=(1,), stride=(1,))
+
+        if not self.training:  # False      At test time clip predictions to valid amplitude range
             out = out.clamp(min=-1.0, max=1.0)
-        return out
+        return out #([4, 2, 88409])
 
     def forward(self, x, inst=None):
-        curr_input_size = x.shape[-1]
+        curr_input_size = x.shape[-1] # [4, 2, 97961]
         assert(curr_input_size == self.input_size) # User promises to feed the proper input himself, to get the pre-calculated (NOT the originally desired) output size
 
-        if self.separate:
+        if self.separate: #True
             return {inst : self.forward_module(x, self.waveunets[inst])}
         else:
             assert(len(self.waveunets) == 1)

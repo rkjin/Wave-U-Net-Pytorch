@@ -60,6 +60,7 @@ def compute_loss(model, inputs, targets, criterion, compute_grad=False):
         avg_loss = 0.0
         num_sources = 0
         for inst in model.instruments:
+            # print('inst', inst) bass, drums, other, vocals
             output = model(inputs, inst)
             loss = criterion(output[inst], targets[inst])
 

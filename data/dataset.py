@@ -25,8 +25,8 @@ class SeparationDataset(Dataset):
 
         self.hdf_dataset = None
         os.makedirs(hdf_dir, exist_ok=True)
-        self.hdf_dir = os.path.join(hdf_dir, partition + ".hdf5")
-
+        self.hdf_dir = os.path.join(hdf_dir, partition + ".hdf5") # hdf/train.hdf5
+        # partition train, val, test
         self.random_hops = random_hops
         self.sr = sr
         self.channels = channels
@@ -34,23 +34,24 @@ class SeparationDataset(Dataset):
         self.audio_transform = audio_transform
         self.in_memory = in_memory
         self.instruments = instruments
-
+ 
         # PREPARE HDF FILE
 
         # Check if HDF file exists already
-        if not os.path.exists(self.hdf_dir):
+        if not os.path.exists(self.hdf_dir): # hdf/train.hdf5
             # Create folder if it did not exist before
             if not os.path.exists(hdf_dir):
                 os.makedirs(hdf_dir)
 
             # Create HDF file
             with h5py.File(self.hdf_dir, "w") as f:
-                f.attrs["sr"] = sr
-                f.attrs["channels"] = channels
-                f.attrs["instruments"] = instruments
+                f.attrs["sr"] = sr # 44100
+                f.attrs["channels"] = channels # 2
+                f.attrs["instruments"] = instruments # ['bass', 'drums', 'other', 'vocals']
 
                 print("Adding audio files to dataset (preprocessing)...")
-                for idx, example in enumerate(tqdm(dataset[partition])):
+                for idx, example in enumerate(tqdm(dataset[partition])): #idx 노래 곡 수
+ 
                     # Load mix
                     mix_audio, _ = load(example["mix"], sr=self.sr, mono=(self.channels == 1))
 
@@ -61,19 +62,18 @@ class SeparationDataset(Dataset):
                         source_audios.append(source_audio)
                     source_audios = np.concatenate(source_audios, axis=0)
                     assert(source_audios.shape[1] == mix_audio.shape[1])
-
                     # Add to HDF5 file
                     grp = f.create_group(str(idx))
                     grp.create_dataset("inputs", shape=mix_audio.shape, dtype=mix_audio.dtype, data=mix_audio)
                     grp.create_dataset("targets", shape=source_audios.shape, dtype=source_audios.dtype, data=source_audios)
                     grp.attrs["length"] = mix_audio.shape[1]
                     grp.attrs["target_length"] = source_audios.shape[1]
-
+                    # print('#########',mix_audio.shape ,source_audios.shape )(2, 8346782) (8, 8346782)
         # In that case, check whether sr and channels are complying with the audio in the HDF file, otherwise raise error
         with h5py.File(self.hdf_dir, "r") as f:
             if f.attrs["sr"] != sr or \
                     f.attrs["channels"] != channels or \
-                    list(f.attrs["instruments"]) != instruments:
+                    list(f.attrs["instruments"]) != instruments: # False
                 raise ValueError(
                     "Tried to load existing HDF file, but sampling rate and channel or instruments are not as expected. Did you load an out-dated HDF file?")
 
@@ -84,16 +84,17 @@ class SeparationDataset(Dataset):
         # Go through HDF and collect lengths of all audio files
         with h5py.File(self.hdf_dir, "r") as f:
             lengths = [f[str(song_idx)].attrs["target_length"] for song_idx in range(len(f))]
-
+            # print('lengths',lengths) lengths [8346782, 7213530, 8679219]
             # Subtract input_size from lengths and divide by hop size to determine number of starting positions
             lengths = [(l // self.shapes["output_frames"]) + 1 for l in lengths]
-
+            # self.shapes dict_keys(['output_start_frame', 'output_end_frame', 'output_frames', 'input_frames'])
+            # print(lengths) [95, 82, 99]
         self.start_pos = SortedList(np.cumsum(lengths))
         self.length = self.start_pos[-1]
 
     def __getitem__(self, index):
         # Open HDF5
-        if self.hdf_dataset is None:
+        if self.hdf_dataset is None: # 처음만
             driver = "core" if self.in_memory else None  # Load HDF5 fully into memory if desired
             self.hdf_dataset = h5py.File(self.hdf_dir, 'r', driver=driver)
 

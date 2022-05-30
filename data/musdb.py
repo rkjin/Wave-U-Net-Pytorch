@@ -27,11 +27,10 @@ def get_musdbhq(database_path):
                 filename = stem if stem != "mix" else "mixture"
                 audio_path = os.path.join(track_folder, filename + ".wav")
                 example[stem] = audio_path
-
+            # print(example['mix']) #(['mix', 'bass', 'drums', 'other', 'vocals'])
             # Add other instruments to form accompaniment
             acc_path = os.path.join(track_folder, "accompaniment.wav")
-
-            if not os.path.exists(acc_path):
+            if not os.path.exists(acc_path): #False
                 print("Writing accompaniment to " + track_folder)
                 stem_audio = []
                 for stem in ["bass", "drums", "other"]:
@@ -45,7 +44,7 @@ def get_musdbhq(database_path):
             samples.append(example)
 
         subsets.append(samples)
-
+        # print(subsets)
     return subsets
 
 def get_musdb(database_path):
@@ -113,15 +112,34 @@ def get_musdb(database_path):
     return subsets
 
 def get_musdb_folds(root_path, version="HQ"):
-    if version == "HQ":
-        dataset = get_musdbhq(root_path)
+    if version == "HQ": # True
+        dataset = get_musdbhq(root_path) #/home/bj/data/dnn/cfnet_venv/Wave-U-Net-Pytorch/musdb18-hq
     else:
         dataset = get_musdb(root_path)
-    train_val_list = dataset[0]
-    test_list = dataset[1]
-
+    train_val_list = dataset[0] # train
+    test_list = dataset[1] # test
+    
     np.random.seed(1337) # Ensure that partitioning is always the same on each run
-    train_list = np.random.choice(train_val_list, 75, replace=False)
+    # train_list = np.random.choice(train_val_list, 75, replace=False)
+    train_list = np.random.choice(train_val_list, 3, replace=False)
     val_list = [elem for elem in train_val_list if elem not in train_list]
     # print("First training song: " + str(train_list[0])) # To debug whether partitioning is deterministic
+    # print('1111111111111 \n')
+    # for j, i in enumerate(train_list):
+    #     print(j, i,'\n')
+    #     d.mixture, d.bass, d.drums, d.other, d.vacals, d.accompaniment 
+    #     c.mixture,  bass,  drums,  other,  vacals,  accompaniment 
+    #     b.mixture,  bass,  drums,  other,  vacals,  accompaniment    
+    # print('2222222222222 \n')
+    # for j, i in enumerate(val_list):
+    #     print(j, i,'\n')
+    #     a.mixture,  bass,  drums,  other,  vacals,  accompaniment 
+    #     e.mixture,  bass,  drums,  other,  vacals,  accompaniment 
+    # print('3333333333333 \n')
+    # for j, i in enumerate(test_list):
+    #     print(j, i,'\n')         
+    #     1.mixture,  bass,  drums,  other,  vacals,  accompaniment 
+    #     2.mixture,  bass,  drums,  other,  vacals,  accompaniment 
+    #     3.mixture,  bass,  drums,  other,  vacals,  accompaniment 
+
     return {"train" : train_list, "val" : val_list, "test" : test_list}

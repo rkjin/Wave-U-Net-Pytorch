@@ -31,10 +31,13 @@ def crop_targets(mix, targets, shapes):
     '''
     Crops target audio to the output shape required by the model given in "shapes"
     '''
-    for key in targets.keys():
+    for key in targets.keys(): #dict_keys(['bass', 'drums', 'other', 'vocals'])
         if key != "mix":
+            
             targets[key] = targets[key][:, shapes["output_start_frame"]:shapes["output_end_frame"]]
-    return mix, targets
+            # print('crop',key, shapes["output_start_frame"],shapes["output_end_frame"]) 4776 93185
+        # print(mix.shape,targets['bass'].shape )    
+    return mix, targets # (2, 97961) (2, 88409)
 
 
 def load(path, sr=22050, mono=True, mode="numpy", offset=0.0, duration=None):
@@ -46,7 +49,7 @@ def load(path, sr=22050, mono=True, mode="numpy", offset=0.0, duration=None):
 
     if mode == "pytorch":
         y = torch.tensor(y)
-
+    
     return y, curr_sr
 
 
