@@ -658,3 +658,50 @@ model:  DataParallel(
 )
 parameter count:  70148232
 
+   ('--instruments', type=str, nargs='+', default=["bass", "drums", "other", "vocals"],
+      help="List of instruments to separate (default: \"bass drums other vocals\")")
+    ('--cuda', default = True,   help='Use CUDA  ')
+    ('--num_workers', type=int, default=1,
+       help='Number of data loader worker threads (default: 1)')
+    ('--features', type=int, default=32,
+       help='Number of feature channels per layer')
+    ('--log_dir', type=str, default='logs/waveunet',
+       help='Folder to write logs into')
+    ('--dataset_dir', type=str, default="/home/bj/data/dnn/cfnet_venv/music_data/musdb18-hq",
+       help='Dataset path')
+    ('--hdf_dir', type=str, default="hdf",
+       help='Dataset path')
+    ('--checkpoint_dir', type=str, default='checkpoints/waveunet',
+       help='Folder to write checkpoints into')
+    ('--load_model', type=str, default=None,
+         help='Reload a previously trained model (whole task model)')
+    ('--lr', type=float, default=1e-3,
+        help='Initial learning rate in LR cycle (default: 1e-3)')
+    ('--min_lr', type=float, default=5e-5,
+        help='Minimum learning rate in LR cycle (default: 5e-5)')
+    ('--cycles', type=int, default=2,
+       help='Number of LR cycles per epoch')
+    ('--batch_size', type=int, default=4, help="Batch size")
+    ('--levels', type=int, default=6,
+       help="Number of DS/US blocks")
+    ('--depth', type=int, default=1, help="Number of convs per block")
+    ('--sr', type=int, default=44100, help="Sampling rate")
+    ('--channels', type=int, default=2,
+         help="Number of input audio channels")
+    ('--kernel_size', type=int, default=5,
+         help="Filter width of kernels. Has to be an odd number")
+    ('--output_size', type=float, default=2.0, help="Output duration")
+    ('--strides', type=int, default=4, help="Strides in Waveunet")
+    ('--patience', type=int, default=20,
+          help="Patience for early stopping on validation set")
+    ('--example_freq', type=int, default=200,
+         help="Write an audio summary into Tensorboard logs every X training iterations")
+    ('--loss', type=str, default="L1",help="L1 or L2")
+    ('--conv_type', type=str, default="gn",
+          help="Type of convolution (normal, BN-normalised, GN-normalised): normal/bn/gn")
+    ('--res', type=str, default="fixed",
+            help="Resampling strategy: fixed sinc-based lowpass filtering or learned conv layer: fixed/learned")
+    ('--separate', type=int, default=1,
+          help="Train separate model for each source (1) or only one (0)")
+    ('--feature_growth', type=str, default="double",
+           help="How the features in each layer should grow, either (add) the initial number of features each time, or multiply by 2 (double)")

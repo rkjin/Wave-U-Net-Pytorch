@@ -14,7 +14,7 @@ def random_amplify(mix, targets, shapes, min, max):
     :param max: Maximum possible amplification
     :return: New data point as tuple (mix, targets)
     '''
-    residual = mix  # start with original mix
+    residual = mix  # start with original mix (2, 97961)
     for key in targets.keys():
         if key != "mix":
             residual -= targets[key]  # subtract all instruments (output is zero if all instruments add to mix)
@@ -47,7 +47,7 @@ def load(path, sr=22050, mono=True, mode="numpy", offset=0.0, duration=None):
         # Expand channel dimension
         y = y[np.newaxis, :]
 
-    if mode == "pytorch":
+    if mode == "pytorch":#False
         y = torch.tensor(y)
     
     return y, curr_sr

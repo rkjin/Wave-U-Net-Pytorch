@@ -24,15 +24,15 @@ class SeparationDataset(Dataset):
         super(SeparationDataset, self).__init__()
 
         self.hdf_dataset = None
-        os.makedirs(hdf_dir, exist_ok=True)
+        os.makedirs(hdf_dir, exist_ok=True) #"hdf"
         self.hdf_dir = os.path.join(hdf_dir, partition + ".hdf5") # hdf/train.hdf5
         # partition train, val, test
-        self.random_hops = random_hops
-        self.sr = sr
-        self.channels = channels
+        self.random_hops = random_hops #True, False, False
+        self.sr = sr #44100
+        self.channels = channels #2
         self.shapes = shapes
-        self.audio_transform = audio_transform
-        self.in_memory = in_memory
+        self.audio_transform = audio_transform  # augment_func
+        self.in_memory = in_memory #False
         self.instruments = instruments
  
         # PREPARE HDF FILE
@@ -51,8 +51,8 @@ class SeparationDataset(Dataset):
 
                 print("Adding audio files to dataset (preprocessing)...")
                 for idx, example in enumerate(tqdm(dataset[partition])): #idx 노래 곡 수
- 
                     # Load mix
+                    
                     mix_audio, _ = load(example["mix"], sr=self.sr, mono=(self.channels == 1))
 
                     source_audios = []
@@ -60,7 +60,7 @@ class SeparationDataset(Dataset):
                         # In this case, read in audio and convert to target sampling rate
                         source_audio, _ = load(example[source], sr=self.sr, mono=(self.channels == 1))
                         source_audios.append(source_audio)
-                    source_audios = np.concatenate(source_audios, axis=0)
+                    source_audios = np.concatenate(source_audios, axis=0) # ch 증가 (8, 8346782길이따라)
                     assert(source_audios.shape[1] == mix_audio.shape[1])
                     # Add to HDF5 file
                     grp = f.create_group(str(idx))
@@ -71,9 +71,7 @@ class SeparationDataset(Dataset):
                     # print('#########',mix_audio.shape ,source_audios.shape )(2, 8346782) (8, 8346782)
         # In that case, check whether sr and channels are complying with the audio in the HDF file, otherwise raise error
         with h5py.File(self.hdf_dir, "r") as f:
-            if f.attrs["sr"] != sr or \
-                    f.attrs["channels"] != channels or \
-                    list(f.attrs["instruments"]) != instruments: # False
+            if f.attrs["sr"] != sr or f.attrs["channels"] != channels or list(f.attrs["instruments"]) != instruments: # False
                 raise ValueError(
                     "Tried to load existing HDF file, but sampling rate and channel or instruments are not as expected. Did you load an out-dated HDF file?")
 
@@ -87,6 +85,7 @@ class SeparationDataset(Dataset):
             # print('lengths',lengths) lengths [8346782, 7213530, 8679219]
             # Subtract input_size from lengths and divide by hop size to determine number of starting positions
             lengths = [(l // self.shapes["output_frames"]) + 1 for l in lengths]
+            # print(self.shapes["output_frames"]) 88409
             # self.shapes dict_keys(['output_start_frame', 'output_end_frame', 'output_frames', 'input_frames'])
             # print(lengths) [95, 82, 99]
         self.start_pos = SortedList(np.cumsum(lengths))
@@ -96,6 +95,7 @@ class SeparationDataset(Dataset):
         # Open HDF5
         if self.hdf_dataset is None: # 처음만
             driver = "core" if self.in_memory else None  # Load HDF5 fully into memory if desired
+            # print('core',driver) None
             self.hdf_dataset = h5py.File(self.hdf_dir, 'r', driver=driver)
 
         # Find out which slice of targets we want to read

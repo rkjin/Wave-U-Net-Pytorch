@@ -10,8 +10,8 @@ class UpsamplingBlock(nn.Module):
         super(UpsamplingBlock, self).__init__()
         assert(stride > 1)
 
-        # CONV 1 for UPSAMPLING
-        if res == "fixed":
+        # CONV 1 for UPSAMPLING  
+        if res == "fixed": #True
             self.upconv = Resample1d(n_inputs, 15, stride, transpose=True)
         else:
             self.upconv = ConvLayer(n_inputs, n_inputs, kernel_size, stride, conv_type, transpose=True)
@@ -147,11 +147,11 @@ class Waveunet(nn.Module):
     def __init__(self, num_inputs, num_channels, num_outputs, instruments, kernel_size, target_output_size, conv_type, res, separate=False, depth=1, strides=2):
         super(Waveunet, self).__init__()
 
-        self.num_levels = len(num_channels) #6
+        self.num_levels = len(num_channels) #6 #[32, 64, 128, 256, 512, 1024]
         self.strides = strides #4
         self.kernel_size = kernel_size #5
-        self.num_inputs = num_inputs #2
-        self.num_outputs = num_outputs #2
+        self.num_inputs = num_inputs # 2 ch
+        self.num_outputs = num_outputs #2 ch
         self.depth = depth #1
         self.instruments = instruments #  ['bass', 'drums', 'other', 'vocals']
         self.separate = separate # 1
@@ -159,16 +159,15 @@ class Waveunet(nn.Module):
         assert(kernel_size % 2 == 1)
 
         self.waveunets = nn.ModuleDict()
-        model_list = instruments if separate else ["ALL"]
+        model_list = instruments if separate else ["ALL"] #  ['bass', 'drums', 'other', 'vocals']
  
         # Create a model for each source if we separate sources separately, otherwise only one (model_list=["ALL"])
         for instrument in model_list: #  ['bass', 'drums', 'other', 'vocals']
-            module = nn.Module()
+            module = nn.Module() #??????????????????????????????????????????
+            module.downsampling_blocks = nn.ModuleList() #??????????????????????????????????????????
+            module.upsampling_blocks = nn.ModuleList() #??????????????????????????????????????????
 
-            module.downsampling_blocks = nn.ModuleList()
-            module.upsampling_blocks = nn.ModuleList()
- 
-            for i in range(self.num_levels - 1): # 0 ~ 4
+            for i in range(self.num_levels - 1): # 6-1 = 5
                 in_ch = num_inputs if i == 0 else num_channels[i]
 #               print(i, in_ch) 0:2, 1:64, 2:128, 3:246, 4:512
                 module.downsampling_blocks.append(
@@ -186,21 +185,21 @@ class Waveunet(nn.Module):
             module.output_conv = nn.Conv1d(num_channels[0], outputs, 1)
 
             self.waveunets[instrument] = module
-
-        self.set_output_size(target_output_size)
+ 
+        self.set_output_size(target_output_size) #88200 = 44.1khz * 2 
 
     def set_output_size(self, target_output_size):
         self.target_output_size = target_output_size
 
         self.input_size, self.output_size = self.check_padding(target_output_size)
         print("Using valid convolutions with " + str(self.input_size) + " inputs and " + str(self.output_size) + " outputs")
-
+             # Using valid convolutions with 97961 inputs and 88409 outputs
         assert((self.input_size - self.output_size) % 2 == 0)
         self.shapes = {"output_start_frame" : (self.input_size - self.output_size) // 2,
                        "output_end_frame" : (self.input_size - self.output_size) // 2 + self.output_size,
                        "output_frames" : self.output_size,
                        "input_frames" : self.input_size}
-
+     # {'output_start_frame': 4776, 'output_end_frame': 93185, 'output_frames': 88409, 'input_frames': 97961}
     def check_padding(self, target_output_size):
         # Ensure number of outputs covers a whole number of cycles so each output in the cycle is weighted equally during training
         bottleneck = 1

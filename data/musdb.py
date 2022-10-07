@@ -27,6 +27,7 @@ def get_musdbhq(database_path):
                 filename = stem if stem != "mix" else "mixture"
                 audio_path = os.path.join(track_folder, filename + ".wav")
                 example[stem] = audio_path
+ 
             # print(example['mix']) #(['mix', 'bass', 'drums', 'other', 'vocals'])
             # Add other instruments to form accompaniment
             acc_path = os.path.join(track_folder, "accompaniment.wav")
@@ -44,7 +45,7 @@ def get_musdbhq(database_path):
             samples.append(example)
 
         subsets.append(samples)
-        # print(subsets)
+        print(subsets)
     return subsets
 
 def get_musdb(database_path):

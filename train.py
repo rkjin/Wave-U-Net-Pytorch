@@ -26,24 +26,22 @@ def main(args):
     # MODEL
     num_features = [args.features*i for i in range(1, args.levels+1)] if args.feature_growth == "add" else \
                    [args.features*2**i for i in range(0, args.levels)]  #[32, 64, 128, 256, 512, 1024]
-    target_outputs = int(args.output_size * args.sr) #88200 = 44.1khz * 2 
+    target_outputs = int(args.output_size * args.sr) #88200 = 2 * 44.1khz   
     model = Waveunet(args.channels, num_features, args.channels, args.instruments, kernel_size=args.kernel_size,
                      target_output_size=target_outputs, depth=args.depth, strides=args.strides,
-                     conv_type=args.conv_type, res=args.res, separate=args.separate)
- 
+                     conv_type=args.conv_type, res=args.res, separate=args.separate) # 'fixed'
     if args.cuda: # True
-        model = model_utils.DataParallel(model)
-        print("move model to gpu")
-        model.cuda()
+        # model = model_utils.DataParallel(model) #GPU 1개
+        model.cuda() #"move model to gpu"
 
-#    print('model: ', model)
     print('parameter count: ', str(sum(p.numel() for p in model.parameters())))
 
     writer = SummaryWriter(args.log_dir)
 
     ### DATASET
-    musdb = get_musdb_folds(args.dataset_dir)
+    musdb = get_musdb_folds(args.dataset_dir) # /home/bj/data/dnn/cfnet_venv/music_data/musdb18-hq
     # If not data augmentation, at least crop targets to fit model output shape
+    # model.shapes {'output_start_frame': 4776, 'output_end_frame': 93185, 'output_frames': 88409, 'input_frames': 97961}
     crop_func = partial(crop_targets, shapes=model.shapes)
     # Data augmentation function for training
     augment_func = partial(random_amplify, shapes=model.shapes, min=0.7, max=1.0)
