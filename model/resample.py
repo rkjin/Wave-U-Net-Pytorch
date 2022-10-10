@@ -35,23 +35,27 @@ class Resample1d(nn.Module):
     def forward(self, x):
         # Pad here if not using transposed conv
         input_size = x.shape[2]
-        if self.padding != "valid":
+        print('###########',x.shape)
+        if self.padding != "valid": #True
             num_pad = (self.kernel_size-1)//2
             out = F.pad(x, (num_pad, num_pad), mode=self.padding)
         else:
             out = x
-
+        # print('x.shape, input_size, num_pad, out.shape', x.shape, input_size, num_pad, out.shape )
         # Lowpass filter (+ 0 insertion if transposed)
-        if self.transpose:
+        if self.transpose: #False
             expected_steps = ((input_size - 1) * self.stride + 1)
-            if self.padding == "valid":
+            if self.padding == "valid": #False
                 expected_steps = expected_steps - self.kernel_size + 1
-
+            print('out',out.shape)
             out = F.conv_transpose1d(out, self.filter, stride=self.stride, padding=0, groups=self.channels)
+            print('out',out.shape, self.filter.shape)
             diff_steps = out.shape[2] - expected_steps
             if diff_steps > 0:
                 assert(diff_steps % 2 == 0)
                 out = out[:,:,diff_steps//2:-diff_steps//2]
+            # print(self.padding, expected_steps, input_size, self.stride, self.kernel_size, self.filter, out.shape, diff_steps)    
+                    # reflect       357             90             4              15                    [4, 1024, 357]   70               
         else:
             assert(input_size % self.stride == 1)
             out = F.conv1d(out, self.filter, stride=self.stride, padding=0, groups=self.channels)

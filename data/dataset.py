@@ -30,8 +30,9 @@ class SeparationDataset(Dataset):
         self.random_hops = random_hops #True, False, False
         self.sr = sr #44100
         self.channels = channels #2
-        self.shapes = shapes
-        self.audio_transform = audio_transform  # augment_func
+        self.shapes = shapes #{'output_start_frame': 4776, 'output_end_frame': 93185, 'output_frames': 88409, 'input_frames': 97961}
+        print(shapes)
+        self.audio_transform = audio_transform  # augment_func()
         self.in_memory = in_memory #False
         self.instruments = instruments
  
@@ -52,9 +53,8 @@ class SeparationDataset(Dataset):
                 print("Adding audio files to dataset (preprocessing)...")
                 for idx, example in enumerate(tqdm(dataset[partition])): #idx 노래 곡 수
                     # Load mix
-                    
+                    # print(example) {'mix': '/home/bj/data/dnn/cfnet_venv/music_data/musdb18-hq/train/d/mixture.wav', 'bass': '/home/bj/data/dnn/cfnet_venv/music_data/musdb18-hq/train/d/bass.wav', 'drums': '/home/bj/data/dnn/cfnet_venv/music_data/musdb18-hq/train/d/drums.wav', 'other': '/home/bj/data/dnn/cfnet_venv/music_data/musdb18-hq/train/d/other.wav', 'vocals': '/home/bj/data/dnn/cfnet_venv/music_data/musdb18-hq/train/d/vocals.wav', 'accompaniment': '/home/bj/data/dnn/cfnet_venv/music_data/musdb18-hq/train/d/accompaniment.wav'}
                     mix_audio, _ = load(example["mix"], sr=self.sr, mono=(self.channels == 1))
-
                     source_audios = []
                     for source in instruments:
                         # In this case, read in audio and convert to target sampling rate
@@ -89,34 +89,43 @@ class SeparationDataset(Dataset):
             # self.shapes dict_keys(['output_start_frame', 'output_end_frame', 'output_frames', 'input_frames'])
             # print(lengths) [95, 82, 99]
         self.start_pos = SortedList(np.cumsum(lengths))
-        self.length = self.start_pos[-1]
-
+        self.length = self.start_pos[-1] # 누적 길이 
+        # print(self.start_pos)
+        # print(self.length)
+        # SortedList([95, 177, 276]) train
+        # 276
+        # SortedList([86, 175]) test
+        # 175
+        # SortedList([101, 206, 296]) val
+        # 296
     def __getitem__(self, index):
         # Open HDF5
         if self.hdf_dataset is None: # 처음만
             driver = "core" if self.in_memory else None  # Load HDF5 fully into memory if desired
-            # print('core',driver) None
-            self.hdf_dataset = h5py.File(self.hdf_dir, 'r', driver=driver)
+            # print('core',self.in_memory, driver)  False, None
+            self.hdf_dataset = h5py.File(self.hdf_dir, 'r', driver=driver) #
 
         # Find out which slice of targets we want to read
-        audio_idx = self.start_pos.bisect_right(index)
+        audio_idx = self.start_pos.bisect_right(index) # 인덱스가 몇번째 노래에 해당하는가?
+        # print(self.start_pos, index)  ([95, 177, 276]) 187
         if audio_idx > 0:
-            index = index - self.start_pos[audio_idx - 1]
+            index = index - self.start_pos[audio_idx - 1] # 몇번째 노래 처음부터의 인덱스는 얼마인가?
 
         # Check length of audio signal
         audio_length = self.hdf_dataset[str(audio_idx)].attrs["length"]
         target_length = self.hdf_dataset[str(audio_idx)].attrs["target_length"]
+        print('audio_length, target_length', audio_idx, audio_length, target_length)
 
         # Determine position where to start targets
         if self.random_hops:
-            start_target_pos = np.random.randint(0, max(target_length - self.shapes["output_frames"] + 1, 1))
+            start_target_pos = np.random.randint(0, max(target_length - self.shapes["output_frames"] + 1, 1))          
         else:
             # Map item index to sample position within song
             start_target_pos = index * self.shapes["output_frames"]
-
+        print('start_target_pos', index, start_target_pos, self.shapes["output_frames"])
         # READ INPUTS
         # Check front padding
-        start_pos = start_target_pos - self.shapes["output_start_frame"]
+        start_pos = start_target_pos - self.shapes["output_start_frame"] # 4776
         if start_pos < 0:
             # Pad manually since audio signal was too short
             pad_front = abs(start_pos)

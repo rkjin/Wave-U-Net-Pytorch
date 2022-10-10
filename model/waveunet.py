@@ -181,7 +181,7 @@ class Waveunet(nn.Module):
                 [ConvLayer(num_channels[-1], num_channels[-1], kernel_size, 1, conv_type) for _ in range(depth)])
 
             # Output conv
-            outputs = num_outputs if separate else num_outputs * len(instruments)
+            outputs = num_outputs if separate else num_outputs * len(instruments)                                                    
             module.output_conv = nn.Conv1d(num_channels[0], outputs, 1)
 
             self.waveunets[instrument] = module
@@ -191,7 +191,7 @@ class Waveunet(nn.Module):
     def set_output_size(self, target_output_size):
         self.target_output_size = target_output_size
 
-        self.input_size, self.output_size = self.check_padding(target_output_size)
+        self.input_size, self.output_size = self.check_padding(target_output_size)      
         print("Using valid convolutions with " + str(self.input_size) + " inputs and " + str(self.output_size) + " outputs")
              # Using valid convolutions with 97961 inputs and 88409 outputs
         assert((self.input_size - self.output_size) % 2 == 0)
@@ -352,6 +352,7 @@ class Waveunet(nn.Module):
             # )
         # UPSAMPLING BLOCKS
         for idx, block in enumerate(module.upsampling_blocks):
+            print('up block', block)
             # print(idx, out.shape, shortcuts[-1-idx].shape)
             out = block(out, shortcuts[-1 - idx])
             # print(idx, out.shape)
@@ -456,8 +457,7 @@ class Waveunet(nn.Module):
 
     def forward(self, x, inst=None):
         curr_input_size = x.shape[-1] # [4, 2, 97961]
-        assert(curr_input_size == self.input_size) # User promises to feed the proper input himself, to get the pre-calculated (NOT the originally desired) output size
-
+        assert(curr_input_size == self.input_size) # 97961 inputs and 88409 outputs
         if self.separate: #True
             return {inst : self.forward_module(x, self.waveunets[inst])}
         else:
